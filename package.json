@@ -1,0 +1,17 @@
+{
+  "name": "practica-prestamos",
+  "version": "1.0.0",
+  "description": "Aplicación de gestión de préstamos con Express y PostgreSQL",
+  "scripts": {
+    "start": "node --env-file=.env src/server.mjs"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "ejs": "^3.1.10",
+    "express": "^5.3.0",
+    "pg": "^8.23.1"
+  }
+}
