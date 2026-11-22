@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Equipos</title>
+</head>
+<body>
+  <h1>Equipos</h1>
+
+  <form method="get" action="/equipos">
+    <label>Buscar
+      <input type="text" name="q" value="<%= filtros.q %>" maxlength="100">
+    </label>
+    <label>Categoría
+      <select name="categoria">
+        <option value="">Todas</option>
+        <% categorias.forEach((c) => { %>
+          <option value="<%= c %>" <%= c === filtros.categoria ? 'selected' : '' %>><%= c %></option>
+        <% }) %>
+      </select>
+    </label>
+    <label>Disponible
+      <select name="disponible">
+        <option value="" <%= filtros.disponible === '' ? 'selected' : '' %>>Todos</option>
+        <option value="true" <%= filtros.disponible === 'true' ? 'selected' : '' %>>Sí</option>
+        <option value="false" <%= filtros.disponible === 'false' ? 'selected' : '' %>>No</option>
+      </select>
+    </label>
+    <label>Ordenar por
+      <select name="orden">
+        <option value="codigo" <%= filtros.orden === 'codigo' ? 'selected' : '' %>>Código</option>
+        <option value="nombre" <%= filtros.orden === 'nombre' ? 'selected' : '' %>>Nombre</option>
+      </select>
+    </label>
+    <button type="submit">Filtrar</button>
+  </form>
+
+  <% if (equipos.length === 0) { %>
+    <p>No hay equipos que coincidan con los filtros.</p>
+  <% } else { %>
+    <table>
+      <thead>
+        <tr><th>Código</th><th>Nombre</th><th>Categoría</th><th>Disponible</th></tr>
+      </thead>
+      <tbody>
+        <% equipos.forEach((e) => { %>
+          <tr>
+            <td><%= e.codigo %></td>
+            <td><%= e.nombre %></td>
+            <td><%= e.categoria %></td>
+            <td><%= e.disponible ? 'Sí' : 'No' %></td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+
+    <p>
+      <% if (anterior) { %><a href="<%= anterior %>">Anterior</a><% } %>
+      Página <%= pagina %> de <%= totalPaginas %> (<%= total %> equipos)
+      <% if (siguiente) { %><a href="<%= siguiente %>">Siguiente</a><% } %>
+    </p>
+  <% } %>
+</body>
+</html>
