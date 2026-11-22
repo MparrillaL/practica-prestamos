@@ -1,6 +1,12 @@
 import express from 'express';
 import pool from './db.mjs';
-import { listarCategorias, listarEquipos, POR_PAGINA } from './equipos.repo.mjs';
+import {
+  historialPrestamos,
+  listarCategorias,
+  listarEquipos,
+  obtenerEquipo,
+  POR_PAGINA,
+} from './equipos.repo.mjs';
 import { fileURLToPath } from 'node:url';
 
 const app = express();
@@ -62,6 +68,28 @@ app.get('/equipos', async (req, res, next) => {
       anterior: pagina > 1 ? enlace(pagina - 1) : null,
       siguiente: pagina < totalPaginas ? enlace(pagina + 1) : null,
     });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.param('id', (req, res, next, valor) => {
+  const id = Number(valor);
+  if (!/^[1-9]\d*$/.test(valor) || id > 2147483647) {
+    return res.status(400).send('Identificador no válido');
+  }
+  req.id = id;
+  next();
+});
+
+app.get('/equipos/:id', async (req, res, next) => {
+  try {
+    const equipo = await obtenerEquipo(req.id);
+    if (!equipo) {
+      return res.status(404).send('Equipo no encontrado');
+    }
+    const historial = await historialPrestamos(req.id);
+    res.render('equipo', { equipo, historial });
   } catch (err) {
     next(err);
   }

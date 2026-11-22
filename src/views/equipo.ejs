@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title><%= equipo.codigo %> - Equipo</title>
+</head>
+<body>
+  <p><a href="/equipos">Volver al listado</a></p>
+
+  <h1><%= equipo.nombre %></h1>
+  <ul>
+    <li>Código: <%= equipo.codigo %></li>
+    <li>Categoría: <%= equipo.categoria %></li>
+    <li>
+      <% if (equipo.prestado_a) { %>
+        Prestado a: <%= equipo.prestado_a %>
+      <% } else { %>
+        Disponible
+      <% } %>
+    </li>
+  </ul>
+
+  <h2>Historial de préstamos</h2>
+  <% if (historial.length === 0) { %>
+    <p>Sin préstamos</p>
+  <% } else { %>
+    <table>
+      <thead>
+        <tr><th>Usuario</th><th>Fecha de préstamo</th><th>Fecha de devolución</th></tr>
+      </thead>
+      <tbody>
+        <% historial.forEach((h) => { %>
+          <tr>
+            <td><%= h.usuario %></td>
+            <td><%= h.fecha_prestamo.toLocaleString('es-ES') %></td>
+            <td><%= h.fecha_devolucion ? h.fecha_devolucion.toLocaleString('es-ES') : 'Pendiente' %></td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  <% } %>
+</body>
+</html>

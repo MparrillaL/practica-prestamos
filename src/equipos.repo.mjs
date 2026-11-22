@@ -52,3 +52,32 @@ export async function listarCategorias() {
   );
   return rows.map((r) => r.categoria);
 }
+
+// LEFT JOIN: un equipo sin préstamo activo debe aparecer igualmente.
+// La condición del préstamo activo va en el ON para no descartar el equipo.
+export async function obtenerEquipo(id) {
+  const { rows } = await pool.query(
+    `SELECT e.id, e.codigo, e.nombre, e.categoria, e.disponible,
+            u.nombre AS prestado_a
+       FROM practica_prestamos.equipos e
+       LEFT JOIN practica_prestamos.prestamos p
+              ON p.equipo_id = e.id AND p.fecha_devolucion IS NULL
+       LEFT JOIN practica_prestamos.usuarios u
+              ON u.id = p.usuario_id
+      WHERE e.id = $1`,
+    [id],
+  );
+  return rows[0] ?? null;
+}
+
+export async function historialPrestamos(id) {
+  const { rows } = await pool.query(
+    `SELECT p.id, u.nombre AS usuario, p.fecha_prestamo, p.fecha_devolucion
+       FROM practica_prestamos.prestamos p
+       JOIN practica_prestamos.usuarios u ON u.id = p.usuario_id
+      WHERE p.equipo_id = $1
+      ORDER BY p.fecha_prestamo DESC, p.id DESC`,
+    [id],
+  );
+  return rows;
+}
