@@ -81,3 +81,35 @@ export async function historialPrestamos(id) {
   );
   return rows;
 }
+
+const COLUMNAS_EQUIPO = 'id, codigo, nombre, categoria, disponible';
+
+export async function crearEquipo({ codigo, nombre, categoria }) {
+  const { rows } = await pool.query(
+    `INSERT INTO practica_prestamos.equipos (codigo, nombre, categoria)
+     VALUES ($1, $2, $3)
+     RETURNING ${COLUMNAS_EQUIPO}`,
+    [codigo, nombre, categoria],
+  );
+  return rows[0];
+}
+
+// Nunca toca "disponible": solo cambia al prestar o devolver
+export async function actualizarEquipo(id, { codigo, nombre, categoria }) {
+  const { rows } = await pool.query(
+    `UPDATE practica_prestamos.equipos
+        SET codigo = $1, nombre = $2, categoria = $3
+      WHERE id = $4
+      RETURNING ${COLUMNAS_EQUIPO}`,
+    [codigo, nombre, categoria, id],
+  );
+  return rows[0] ?? null;
+}
+
+export async function borrarEquipo(id) {
+  const { rowCount } = await pool.query(
+    'DELETE FROM practica_prestamos.equipos WHERE id = $1',
+    [id],
+  );
+  return rowCount > 0;
+}

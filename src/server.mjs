@@ -1,6 +1,9 @@
 import express from 'express';
 import pool from './db.mjs';
 import {
+  actualizarEquipo,
+  borrarEquipo,
+  crearEquipo,
   historialPrestamos,
   listarCategorias,
   listarEquipos,
@@ -93,6 +96,85 @@ app.get('/equipos/:id', async (req, res, next) => {
   } catch (err) {
     next(err);
   }
+});
+
+const CODIGO_VALIDO = /^[A-Z0-9-]{1,20}$/;
+const MAX_TEXTO = 80;
+
+function validarEquipo(body) {
+  if (body === null || typeof body !== 'object' || Array.isArray(body)) {
+    return { errores: ['El cuerpo debe ser un objeto JSON'] };
+  }
+
+  const errores = [];
+  const { codigo, nombre, categoria } = body;
+
+  if (typeof codigo !== 'string' || !CODIGO_VALIDO.test(codigo)) {
+    errores.push('codigo debe ser texto de 1 a 20 caracteres: mayúsculas, dígitos o guion');
+  }
+  for (const [campo, valor] of [['nombre', nombre], ['categoria', categoria]]) {
+    if (typeof valor !== 'string' || valor.trim() === '' || valor.trim().length > MAX_TEXTO) {
+      errores.push(`${campo} debe ser texto no vacío de hasta ${MAX_TEXTO} caracteres`);
+    }
+  }
+
+  if (errores.length > 0) {
+    return { errores };
+  }
+  return { datos: { codigo, nombre: nombre.trim(), categoria: categoria.trim() } };
+}
+
+app.post('/api/equipos', async (req, res) => {
+  const { errores, datos } = validarEquipo(req.body);
+  if (errores) {
+    return res.status(400).json({ errores });
+  }
+  const equipo = await crearEquipo(datos);
+  res.status(201).location('/equipos/' + equipo.id).json(equipo);
+});
+
+app.put('/api/equipos/:id', async (req, res) => {
+  const { errores, datos } = validarEquipo(req.body);
+  if (errores) {
+    return res.status(400).json({ errores });
+  }
+  const equipo = await actualizarEquipo(req.id, datos);
+  if (!equipo) {
+    return res.status(404).json({ error: 'Equipo no encontrado' });
+  }
+  res.json(equipo);
+});
+
+app.delete('/api/equipos/:id', async (req, res) => {
+  if (!(await borrarEquipo(req.id))) {
+    return res.status(404).json({ error: 'Equipo no encontrado' });
+  }
+  res.status(204).end();
+});
+
+// Manejador final: debe ir después de todas las rutas y tener 4 parámetros
+app.use((err, req, res, next) => {
+  if (res.headersSent) {
+    return next(err);
+  }
+  if (err.type === 'entity.parse.failed') {
+    return res.status(400).json({ error: 'JSON mal formado' });
+  }
+  if (err.type === 'entity.too.large') {
+    return res.status(413).json({ error: 'Cuerpo demasiado grande' });
+  }
+  switch (err.code) {
+    case '23505':
+      return res.status(409).json({ error: 'Ya existe un equipo con ese código' });
+    case '23503':
+      return res.status(409).json({ error: 'El equipo tiene préstamos asociados' });
+    case '23514':
+    case '23502':
+    case '22001':
+      return res.status(400).json({ error: 'Datos no válidos' });
+  }
+  console.error(err);
+  res.status(500).json({ error: 'Error interno del servidor' });
 });
 
 try {
