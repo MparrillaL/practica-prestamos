@@ -11,6 +11,7 @@ import {
   POR_PAGINA,
 } from './equipos.repo.mjs';
 import { fileURLToPath } from 'node:url';
+import { devolver, ErrorDominio, prestar } from './prestamos.service.mjs';
 
 const app = express();
 
@@ -152,6 +153,24 @@ app.delete('/api/equipos/:id', async (req, res) => {
   res.status(204).end();
 });
 
+const esIdValido = (valor) => Number.isInteger(valor) && valor >= 1 && valor <= 2147483647;
+
+app.post('/api/prestamos', async (req, res) => {
+  const { equipoId, usuarioId } = req.body ?? {};
+  if (!esIdValido(equipoId) || !esIdValido(usuarioId)) {
+    return res.status(400).json({
+      errores: ['equipoId y usuarioId deben ser enteros positivos'],
+    });
+  }
+  const prestamo = await prestar(equipoId, usuarioId);
+  res.status(201).json(prestamo);
+});
+
+app.post('/api/prestamos/:id/devolucion', async (req, res) => {
+  const prestamo = await devolver(req.id);
+  res.json(prestamo);
+});
+
 // Manejador final: debe ir después de todas las rutas y tener 4 parámetros
 app.use((err, req, res, next) => {
   if (res.headersSent) {
@@ -163,10 +182,31 @@ app.use((err, req, res, next) => {
   if (err.type === 'entity.too.large') {
     return res.status(413).json({ error: 'Cuerpo demasiado grande' });
   }
+  if (err instanceof ErrorDominio) {
+    switch (err.code) {
+      case 'NO_DISPONIBLE':
+        return res.status(409).json({ error: 'El equipo no está disponible' });
+      // 409: el préstamo existe, pero su estado (ya devuelto) impide la operación
+      case 'NO_ACTIVO':
+        return res.status(409).json({ error: 'El préstamo ya fue devuelto' });
+      case 'PRESTAMO_NO_EXISTE':
+        return res.status(404).json({ error: 'Préstamo no encontrado' });
+      // 400: la URL existe, pero el cuerpo referencia un equipo que no existe
+      case 'EQUIPO_NO_EXISTE':
+        return res.status(400).json({ error: 'El equipo indicado no existe' });
+    }
+  }
   switch (err.code) {
     case '23505':
+      if (err.constraint === 'prestamo_activo_por_equipo') {
+        return res.status(409).json({ error: 'El equipo ya tiene un préstamo activo' });
+      }
       return res.status(409).json({ error: 'Ya existe un equipo con ese código' });
     case '23503':
+      // Se distingue por el nombre de la restricción, nunca por el mensaje
+      if (err.constraint === 'prestamos_usuario_id_fkey') {
+        return res.status(400).json({ error: 'El usuario indicado no existe' });
+      }
       return res.status(409).json({ error: 'El equipo tiene préstamos asociados' });
     case '23514':
     case '23502':
