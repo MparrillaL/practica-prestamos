@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "description": "Aplicación de gestión de préstamos con Express y PostgreSQL",
   "scripts": {
-    "start": "node --env-file=.env src/server.mjs"
+    "start": "node --env-file=.env src/server.mjs",
+    "prueba": "node prueba.mjs"
   },
   "keywords": [],
   "author": "",

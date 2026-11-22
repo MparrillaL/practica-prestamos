@@ -20,16 +20,6 @@ app.set('views', fileURLToPath(new URL('./views', import.meta.url)));
 
 app.use(express.json({ limit: '10kb' }));
 
-// Ruta de prueba temporal
-app.get('/salud', async (req, res, next) => {
-  try {
-    await pool.query('SELECT 1');
-    res.send('ok');
-  } catch (err) {
-    next(err);
-  }
-});
-
 app.get('/equipos', async (req, res, next) => {
   try {
     const texto = (valor) => (typeof valor === 'string' ? valor.trim() : '');
@@ -230,8 +220,8 @@ try {
       await pool.end();
     });
   };
-  process.on('SIGINT', cerrar);
-  process.on('SIGTERM', cerrar);
+  process.once('SIGINT', cerrar);
+  process.once('SIGTERM', cerrar);
 } catch {
   console.error('PostgreSQL no disponible');
   await pool.end();
