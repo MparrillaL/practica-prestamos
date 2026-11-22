@@ -1,4 +1,9 @@
 <!DOCTYPE html>
+<%# Vista del listado. Datos que recibe de server.mjs: equipos, total, pagina,
+    totalPaginas, filtros, categorias y los enlaces anterior/siguiente.
+    Seguridad (XSS): todo dato se imprime con la etiqueta que escapa el HTML
+    (igual-escapada) y nunca con la que no escapa (guion). Jamás se usa esa
+    segunda con datos del usuario o de la base. %>
 <html lang="es">
 <head>
   <meta charset="utf-8">
@@ -7,6 +12,8 @@
 <body>
   <h1>Equipos</h1>
 
+  <%# Formulario GET: los filtros viajan en la URL y se conservan al paginar.
+      Cada campo se rellena con el valor ya normalizado para que no se pierda. %>
   <form method="get" action="/equipos">
     <label>Buscar
       <input type="text" name="q" value="<%= filtros.q %>" maxlength="100">
@@ -35,6 +42,7 @@
     <button type="submit">Filtrar</button>
   </form>
 
+  <%# Sin resultados se muestra un mensaje; si no, la tabla con enlaces a la ficha %>
   <% if (equipos.length === 0) { %>
     <p>No hay equipos que coincidan con los filtros.</p>
   <% } else { %>
@@ -54,6 +62,7 @@
       </tbody>
     </table>
 
+    <%# anterior/siguiente son null en los extremos; los enlaces ya incluyen los filtros %>
     <p>
       <% if (anterior) { %><a href="<%= anterior %>">Anterior</a><% } %>
       Página <%= pagina %> de <%= totalPaginas %> (<%= total %> equipos)

@@ -1,12 +1,23 @@
+// ---------------------------------------------------------------------------
+// prueba.mjs: pruebas de la API con fetch (sin framework de tests).
+// Requisito: la aplicación debe estar arrancada (npm start).
+// Uso: npm run prueba   (BASE_URL opcional, por defecto http://127.0.0.1:3000)
+// Efecto: deja en la base un equipo TEST-... con préstamos que no se pueden
+// borrar (409), así que conviene reiniciar los datos después (docker compose down -v).
+// Código de salida: 0 si todo pasa, 1 si algo falla.
+// ---------------------------------------------------------------------------
 import assert from 'node:assert/strict';
 
 const BASE = process.env.BASE_URL ?? 'http://127.0.0.1:3000';
+// Códigos únicos por ejecución para poder repetir el script sin choques (409).
 const CODIGO = 'TEST-' + Date.now().toString(36).toUpperCase().slice(-10);
 const CODIGO_2 = CODIGO + 'B';
 
 let ok = 0;
 let fallos = 0;
 
+// Ejecuta un caso: si fn lanza (assert falla), se marca como fallo y se
+// continúa con el siguiente en lugar de abortar todo el script.
 async function caso(nombre, fn) {
   try {
     await fn();
@@ -18,6 +29,10 @@ async function caso(nombre, fn) {
   }
 }
 
+// Envía una petición y devuelve { res, status, cuerpo, texto }.
+// - json: se serializa como cuerpo JSON.
+// - crudo: cuerpo enviado tal cual (para probar JSON mal formado).
+// redirect 'manual': así se ven los 302 en lugar de seguirlos.
 async function peticion(metodo, ruta, { json, crudo, tipo = 'application/json' } = {}) {
   const opciones = { method: metodo, redirect: 'manual' };
   if (json !== undefined || crudo !== undefined) {
@@ -26,6 +41,7 @@ async function peticion(metodo, ruta, { json, crudo, tipo = 'application/json' }
   }
   const res = await fetch(BASE + ruta, opciones);
   const texto = await res.text();
+  // Si la respuesta no es JSON (vistas HTML, 204 vacío), cuerpo queda como texto o null.
   let cuerpo = null;
   try {
     cuerpo = texto ? JSON.parse(texto) : null;
@@ -35,10 +51,13 @@ async function peticion(metodo, ruta, { json, crudo, tipo = 'application/json' }
   return { res, status: res.status, cuerpo, texto };
 }
 
+// ---- Fase 5: alta, modificación y borrado de equipos ----
+// Cuerpo válido de referencia; los casos inválidos lo modifican campo a campo.
 const valido = { codigo: CODIGO, nombre: '  Equipo de prueba ', categoria: 'Pruebas' };
 let id;
 let id2;
 
+// Se envía disponible:false para comprobar que la API lo ignora.
 await caso('POST válido → 201, Location y JSON con disponible=true', async () => {
   const { res, status, cuerpo } = await peticion('POST', '/api/equipos', {
     json: { ...valido, disponible: false },
@@ -56,6 +75,7 @@ await caso('POST con código repetido → 409', async () => {
   assert.equal(status, 409);
 });
 
+// Cada entrada rompe una regla de validación distinta: todas deben dar 400.
 const invalidos = {
   'código en minúsculas': { ...valido, codigo: 'abc' },
   'código vacío': { ...valido, codigo: '' },
@@ -81,6 +101,7 @@ await caso('POST sin cuerpo → 400', async () => {
   assert.equal(status, 400);
 });
 
+// El mensaje de error no debe filtrar detalles internos (SyntaxError, trazas...).
 await caso('POST con JSON mal formado → 400 sin detalles internos', async () => {
   const { status, texto } = await peticion('POST', '/api/equipos', { crudo: '{"codigo": ' });
   assert.equal(status, 400);
@@ -122,6 +143,7 @@ await caso('PUT a un id inexistente → 404', async () => {
   assert.equal(status, 404);
 });
 
+// Los dos métodos comparten app.param('id'), que valida el formato del id.
 for (const metodo of ['PUT', 'DELETE']) {
   await caso(`${metodo} con id mal formado → 400`, async () => {
     const { status } = await peticion(metodo, '/api/equipos/abc', { json: valido });
@@ -146,12 +168,16 @@ await caso('GET del equipo borrado → 404', async () => {
 });
 
 // ---- Fase 6: préstamos y devoluciones ----
+// Se usa un equipo propio de la prueba para no tocar los datos iniciales.
 const NOMBRE_P = 'Equipo-prestamos-' + CODIGO;
+// Usuario 1 existe en init.sql; ID_INEXISTENTE es el mayor integer posible.
 const USUARIO_EXISTENTE = 1;
 const ID_INEXISTENTE = 2147483647;
 let equipoP;
 let prestamoP;
 
+// Comprueba el estado del equipo a través del listado (filtrando por su nombre
+// único): así se verifica lo que ve el usuario, no solo la respuesta de la API.
 async function estaDisponible() {
   const { texto } = await peticion('GET', `/equipos?q=${encodeURIComponent(NOMBRE_P)}`);
   assert.ok(texto.includes(NOMBRE_P), 'el equipo no aparece en el listado');
@@ -190,6 +216,8 @@ await caso('prestar con equipo inexistente → 400', async () => {
   assert.equal(status, 400);
 });
 
+// El UPDATE del equipo se ejecuta antes que el INSERT del préstamo: al fallar
+// el INSERT (usuario inexistente), que el equipo siga disponible demuestra el ROLLBACK.
 await caso('prestar con usuario inexistente → 400 y ROLLBACK (equipo sigue disponible)', async () => {
   const { status, cuerpo } = await peticion('POST', '/api/prestamos', {
     json: { equipoId: equipoP, usuarioId: ID_INEXISTENTE },
@@ -199,6 +227,8 @@ await caso('prestar con usuario inexistente → 400 y ROLLBACK (equipo sigue dis
   assert.equal(await estaDisponible(), true);
 });
 
+// Si alguna ruta no liberara el cliente del pool (máx. 5), el sexto fallo
+// dejaría la aplicación bloqueada.
 await caso('8 fallos seguidos no agotan el pool (máx. 5 conexiones)', async () => {
   for (let i = 0; i < 8; i++) {
     const { status } = await peticion('POST', '/api/prestamos', {
@@ -253,6 +283,8 @@ await caso('devolver con id mal formado → 400', async () => {
   assert.equal(status, 400);
 });
 
+// Simultaneidad: las peticiones salen a la vez con Promise.all. La actualización
+// condicional (WHERE disponible = true) garantiza que solo una prospere.
 await caso('6 peticiones simultáneas por el mismo equipo → 1 solo 201 y 5 × 409', async () => {
   const respuestas = await Promise.all(
     Array.from({ length: 6 }, () =>
@@ -279,10 +311,12 @@ await caso('2 devoluciones simultáneas del mismo préstamo → 1 solo 200 y 1 �
   assert.equal(await estaDisponible(), true);
 });
 
-// Limpieza del segundo equipo creado
+// Limpieza: el segundo equipo no tiene préstamos, así que sí se puede borrar.
+// El equipo de la fase 6 tiene historial y se queda en la base.
 if (id2) {
   await peticion('DELETE', `/api/equipos/${id2}`);
 }
 
+// Resumen y código de salida para poder usar el script en automatismos.
 console.log(`\n${ok} correctos, ${fallos} fallidos`);
 process.exitCode = fallos > 0 ? 1 : 0;

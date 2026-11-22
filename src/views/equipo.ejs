@@ -1,4 +1,7 @@
 <!DOCTYPE html>
+<%# Ficha de un equipo. Recibe "equipo" (con prestado_a, que es null si está
+    disponible) y "historial" (préstamos del equipo, del más reciente al más
+    antiguo). Todo se imprime escapado para evitar XSS. %>
 <html lang="es">
 <head>
   <meta charset="utf-8">
@@ -12,6 +15,7 @@
     <li>Código: <%= equipo.codigo %></li>
     <li>Categoría: <%= equipo.categoria %></li>
     <li>
+      <%# prestado_a viene del LEFT JOIN con el préstamo activo %>
       <% if (equipo.prestado_a) { %>
         Prestado a: <%= equipo.prestado_a %>
       <% } else { %>
