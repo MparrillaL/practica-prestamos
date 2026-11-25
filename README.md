@@ -70,6 +70,66 @@ Reglas comunes:
 - Un JSON mal formado devuelve 400 y un cuerpo de más de 10 kB, 413.
 - Los errores inesperados devuelven un 500 con un mensaje genérico.
 
+## Ejemplos con `curl`
+
+Ejecuta estos ejemplos con la aplicación arrancada en `http://127.0.0.1:3000`.
+Los ejemplos de préstamos y de borrado dependen del estado de la base de datos;
+consulta [Datos iniciales](#datos-iniciales) para volver al estado limpio.
+
+### Préstamos y devoluciones
+
+```bash
+# Prestar el equipo 1 a Ana García → 201
+curl -i -X POST http://127.0.0.1:3000/api/prestamos -H "Content-Type: application/json" -d '{"equipoId":1,"usuarioId":1}'
+
+# Repetir el mismo préstamo → 409 (el equipo ya no está disponible)
+curl -i -X POST http://127.0.0.1:3000/api/prestamos -H "Content-Type: application/json" -d '{"equipoId":1,"usuarioId":1}'
+
+# Usuario inexistente → 400; el equipo 2 sigue «Disponible» (rollback)
+curl -i -X POST http://127.0.0.1:3000/api/prestamos -H "Content-Type: application/json" -d '{"equipoId":2,"usuarioId":99}'
+
+# Devolver el préstamo 1 → 200; repetir → 409
+curl -i -X POST http://127.0.0.1:3000/api/prestamos/1/devolucion
+curl -i -X POST http://127.0.0.1:3000/api/prestamos/1/devolucion
+```
+
+### Préstamos simultáneos
+
+Lanza seis préstamos del mismo equipo a la vez. Debe salir un `201` y cinco
+`409`:
+
+```bash
+for i in 1 2 3 4 5 6; do
+  curl -s -o /dev/null -w "%{http_code}\n" -X POST http://127.0.0.1:3000/api/prestamos \
+    -H "Content-Type: application/json" -d '{"equipoId":3,"usuarioId":1}' &
+done; wait
+```
+
+### Equipos
+
+Con los datos iniciales, la nueva alta tendrá el id 11:
+
+```bash
+# Alta → 201 con cabecera Location (/equipos/11)
+curl -i -X POST http://127.0.0.1:3000/api/equipos -H "Content-Type: application/json" -d '{"codigo":"PORT-004","nombre":"Portátil Asus","categoria":"Portátil"}'
+
+# Código repetido → 409
+curl -i -X POST http://127.0.0.1:3000/api/equipos -H "Content-Type: application/json" -d '{"codigo":"PORT-004","nombre":"Otro portátil","categoria":"Portátil"}'
+
+# JSON mal formado → 400
+curl -i -X POST http://127.0.0.1:3000/api/equipos -H "Content-Type: application/json" -d '{mal'
+
+# Modificación → 200 (usa el id que devolvió Location)
+curl -i -X PUT http://127.0.0.1:3000/api/equipos/11 -H "Content-Type: application/json" -d '{"codigo":"PORT-004","nombre":"Portátil Asus ZenBook","categoria":"Portátil"}'
+
+# Borrar un equipo con historial de préstamos → 409
+curl -i -X DELETE http://127.0.0.1:3000/api/equipos/1
+
+# Borrar el equipo nuevo → 204; repetir → 404
+curl -i -X DELETE http://127.0.0.1:3000/api/equipos/11
+curl -i -X DELETE http://127.0.0.1:3000/api/equipos/11
+```
+
 ## Datos iniciales
 
 `init.sql` crea 10 equipos en 5 categorías (Portátil, Tableta, Proyector,
